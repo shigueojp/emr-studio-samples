@@ -20,74 +20,76 @@
 
 
 # Read AWS Region
-echo "Enter the code for the AWS Region in which you want to create the Studio. For example, us-east-1."
-read region
+region=us-east-1
 
 # Read Studio name
 echo "Enter a descriptive name for the Studio. For example, my-first-emr-studio."
 read studio_name
 
 # Retrieve full_studio_dependencies.yml
-curl https://raw.githubusercontent.com/aws-samples/emr-studio-samples/main/full_studio_dependencies.yml --output full_studio_dependencies.yml
+# curl https://raw.githubusercontent.com/aws-samples/emr-studio-samples/main/full_studio_dependencies.yml --output full_studio_dependencies.yml
 
 # Provision the Studio resource stack using AWS CloudFormation
 stack_name=emr-studio-dependencies
 
-aws cloudformation --region $region describe-stacks --stack-name $stack_name > /dev/null 2>&1
+aws cloudformation --region $region describe-stacks --stack-name $stack_name  > /dev/null 2>&1 --profile cogna-dev
 retVal=$?
 
 if [ $retVal -ne 0 ]; then
   echo "Creating the following CloudFormation stack to provision dependencies for the Studio: $stack_name. This takes a few minutes..."
   aws cloudformation --region $region \
   create-stack --stack-name $stack_name \
-  --template-body 'file://full_studio_dependencies.yml' \
-  --capabilities CAPABILITY_NAMED_IAM
+  --template-body 'file://./min_studio_dependencies.yml' \
+  --capabilities CAPABILITY_NAMED_IAM --parameters file://./parameters.json --profile cogna-dev
 else
   echo "There is an existing dependency Cloudformation stack: $stack_name. Resuming with that stack."
 fi
 
-# Check whether the resource stack has been created
-status=""
-while [ "$status" != "CREATE_COMPLETE" ]
-do
-  status=$(aws cloudformation --region $region describe-stacks --stack-name $stack_name --query "Stacks[0].StackStatus" --output text)
-  if [[ "$status" == "CREATE_COMPLETE" ]]
-  then
-    echo "Dependency Cloudfomaton stack has completed."
-    break
-  elif [[ "$status" != "CREATE_IN_PROGRESS" ]]
-  then
-    echo "Failed to create the Cloudformation stack. Fix the cause, delete the failed stack ($stack_name), and try again."
-    exit 1
-  else
-    echo "Waiting for CloudFormation to finish. Current status: $status"
-    echo "Checking the status again in 10 seconds..."
-    sleep 10
-  fi
-done
+# # Check whether the resource stack has been created
+# status=""
+# while [ "$status" != "CREATE_COMPLETE" ]
+# do
+#   status=$(aws cloudformation --region $region describe-stacks --stack-name $stack_name --query "Stacks[0].StackStatus" --output text --profile cogna-dev)
+#   if [[ "$status" == "CREATE_COMPLETE" ]]
+#   then
+#     echo "Dependency Cloudfomaton stack has completed."
+#     break
+#   elif [[ "$status" != "CREATE_IN_PROGRESS" ]]
+#   then
+#     echo "Failed to create the Cloudformation stack. Fix the cause, delete the failed stack ($stack_name), and try again."
+#     exit 1
+#   else
+#     echo "Waiting for CloudFormation to finish. Current status: $status"
+#     echo "Checking the status again in 10 seconds..."
+#     sleep 10
+#   fi
+# done
 
 # Return the resource stack details
-outputs=$(aws cloudformation --region $region describe-stacks --stack-name $stack_name --query "Stacks[0].Outputs" --output text)
+outputs=$(aws cloudformation --region $region describe-stacks --stack-name $stack_name --query "Stacks[0].Outputs" --output text --profile cogna-dev)
+# outputs=$(aws cloudformation --region us-east-1 describe-stacks --stack-name emr-studio-dependencies --query "Stacks[0].Outputs" --output text)
 
 # Remove the default allow-all egress rule of engine security group
-engine_sg=$(echo $outputs | tr " " "\n" | grep -A 1 'EngineSecurityGroup' | tail -n1)
-aws ec2 --region $region revoke-security-group-egress --group-id $engine_sg --protocol all --port all --cidr 0.0.0.0/0  > /dev/null 2>&1
+engine_sg=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'EngineSecurityGroup' | tail -n1)
+aws ec2 --region $region revoke-security-group-egress --profile cogna-dev --group-id $engine_sg --protocol all --port all --cidr 0.0.0.0/0  > /dev/null 2>&1 
 
 # Create the Studio
-vpc=$(echo $outputs | tr " " "\n" | grep -A 1 'VPC' | tail -n1)
-private_subnet_1=$(echo $outputs | tr " " "\n" | grep -A 1 'PrivateSubnet1' | tail -n1) 
-private_subnet_2=$(echo $outputs | tr " " "\n" | grep -A 1 'PrivateSubnet2' | tail -n1) 
-service_role=$(echo $outputs | tr " " "\n" | grep -A 1 'EMRStudioServiceRoleArn' | tail -n1)
-user_role=$(echo $outputs | tr " " "\n" | grep -A 1 'EMRStudioUserRoleArn' | tail -n1)
-workspace_sg=$(echo $outputs | tr " " "\n" | grep -A 1 'WorkspaceSecurityGroup' | tail -n1)
-engine_sg=$(echo $outputs | tr " " "\n" | grep -A 1 'EngineSecurityGroup' | tail -n1)
-storage_bucket=$(echo $outputs | tr " " "\n" | grep -A 1 'EmrStudioStorageBucket' | tail -n1)
+vpc=vpc-00280c523d2d176af
+private_subnet_1=subnet-002d0028962596d22
+private_subnet_2=subnet-09f24c658563ab3ab
+service_role=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'EMRStudioServiceRoleArn' | tail -n1)
+user_role=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'EMRStudioUserRoleArn' | tail -n1)
+workspace_sg=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'WorkspaceSecurityGroup' | tail -n1)
+engine_sg=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'EngineSecurityGroup' | tail -n1)
+storage_bucket=us-east-1-660894085742-dev-s3-emr-storage-bucket
 
+#$region-660894085742-dev-s3-emr-storage-bucket
+#config["PROJECT_NAME"]}_{self.region}_{self.account}_{config["ENV"]}_glue_integration2business
 echo "Creating a studio with $vpc, $private_subnet_1, $private_subnet_2, $service_role, $user_role, $workspace_sg, $engine_sg"
 echo "......"
 
-studio_outputs=$(aws emr create-studio --region $region \
---name $studio_name \
+studio_outputs=$(aws emr create-studio --profile cogna-dev --region $region \
+--name $studio_name-$region-660894085742-dev-emr-studio \
 --auth-mode SSO \
 --vpc-id $vpc \
 --subnet-ids $private_subnet_1 $private_subnet_2 \
@@ -98,8 +100,8 @@ studio_outputs=$(aws emr create-studio --region $region \
 --default-s3-location s3://$storage_bucket \
 --output text)
 
-studio_id=$(echo $studio_outputs | tr " " "\n" | head -n1)
-studio_url=$(echo $studio_outputs | tr " " "\n"  | tail -n1)
+studio_id=$(echo $studio_outputs | tr '[:space:]' "\n" | head -n1)
+studio_url=$(echo $studio_outputs | tr '[:space:]' "\n"  | tail -n1)
 
 
 # Return additional information about managing the Studio
@@ -119,9 +121,9 @@ echo "aws emr delete-studio --region $region --studio-id $studio_id"
 printf "\n"
 
 echo "Specify one of the following session policies when you assign a user or group to the Studio: "
-basic_policy=$(echo $outputs | tr " " "\n" | grep -A 1 'EMRStudioBasicUserPolicyArn' | tail -n1)
-intermediate_policy=$(echo $outputs | tr " " "\n" | grep -A 1 'EMRStudioIntermediateUserPolicyArn' | tail -n1)
-advanced_policy=$(echo $outputs | tr " " "\n" | grep -A 1 'EMRStudioAdvancedUserPolicyArn' | tail -n1)
+basic_policy=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'EMRStudioBasicUserPolicyArn' | tail -n1)
+intermediate_policy=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'EMRStudioIntermediateUserPolicyArn' | tail -n1)
+advanced_policy=$(echo $outputs | tr '[:space:]' "\n" | grep -A 1 'EMRStudioAdvancedUserPolicyArn' | tail -n1)
 
 echo "------------------------------------------------------------"
 echo $basic_policy

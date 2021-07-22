@@ -60,3 +60,4 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 All content in this repository, unless otherwise stated, is Copyright © Amazon Web Services, Inc. or its affiliates. All rights reserved.
 
 The sample code within this repository is made available under the MIT-0 License. See the LICENSE file.
+# cdk_cloud9_automation

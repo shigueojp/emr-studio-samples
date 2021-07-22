@@ -526,6 +526,142 @@ Resources:
       FromPort: 18888
       ToPort: 18888
 
+  # Service catalog resources for cluster templates
+  ClusterTemplateLaunchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - servicecatalog.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: "Launch constraint role"
+      RoleName: ClusterTemplateLaunchRole
+
+  ClusterTemplateLaunchConstraintPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Roles:
+      - Ref: "ClusterTemplateLaunchRole"
+      ManagedPolicyName: ClusterTemplateLaunchConstraintPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        # Ref: https://docs.aws.amazon.com/servicecatalog/latest/adminguide/constraints-launch.html
+        Statement:
+        - Effect: Allow
+          Resource: "*"
+          Action:
+          - "cloudformation:CreateStack"
+          - "cloudformation:DeleteStack"
+          - "cloudformation:DescribeStackEvents"
+          - "cloudformation:DescribeStacks"
+          - "cloudformation:GetTemplateSummary"
+          - "cloudformation:SetStackPolicy"
+          - "cloudformation:ValidateTemplate"
+          - "cloudformation:UpdateStack"
+          - "elasticmapreduce:RunJobFlow"
+          - "elasticmapreduce:DescribeCluster"
+          - "elasticmapreduce:TerminateJobFlows"
+          - "servicecatalog:*"
+          - "s3:GetObject"
+        - Effect: Allow
+          Resource:
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/EMR_DefaultRole
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/EMR_EC2_DefaultRole
+          Action:
+          - "iam:passRole"
+
+  # Service catalog resources for cluster templates
+  ClusterTemplatePortfolio:
+    Type: "AWS::ServiceCatalog::Portfolio"
+    Properties:
+      DisplayName: "ClusterTemplatePortfolio"
+      ProviderName: "emr-studio-examples"
+  ClusterTemplatePortfolioPrincipalAssociationForEndUser:
+    Type: "AWS::ServiceCatalog::PortfolioPrincipalAssociation"
+    Properties:
+      PrincipalARN: !GetAtt EMRStudioUserRole.Arn
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      PrincipalType: IAM
+
+  # One Node
+  OneNodeClusterProduct:
+    Type: "AWS::ServiceCatalog::CloudFormationProduct"
+    Properties:
+      Name: "one-node-cluster"
+      Description: "An emr-6.2.0 cluster with instance type m5xlarge and one master node"
+      Owner: "emr-studio-examples"
+      ProvisioningArtifactParameters:
+        - Description: "One-Node Cluster Template"
+          Name: "One-Node Cluster Template"
+          Info:
+            LoadTemplateFromURL: https://raw.githubusercontent.com/shigueojp/emr-studio-samples/main/cluster_templates/one-node-cluster.yml
+  OneNodeClusterProductPortfolioAssociation:
+    Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref OneNodeClusterProduct
+  OneNodeClusterProductLaunchRoleConstraint:
+    DependsOn: OneNodeClusterProduct
+    Type: AWS::ServiceCatalog::LaunchRoleConstraint
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref OneNodeClusterProduct
+      RoleArn: !GetAtt ClusterTemplateLaunchRole.Arn
+
+  # Two Nodes
+  TwoNodeClusterProduct:
+    Type: "AWS::ServiceCatalog::CloudFormationProduct"
+    Properties:
+      Name: "one-master-one-core-cluster"
+      Description: "An emr-6.2.0 cluster with instance type m5xlarge and one master node and one core node"
+      Owner: "emr-studio-examples"
+      ProvisioningArtifactParameters:
+        - Description: "Two-Node Cluster Template"
+          Name: "Two-Node Cluster Template"
+          Info:
+            LoadTemplateFromURL: https://raw.githubusercontent.com/shigueojp/emr-studio-samples/main/cluster_templates/one-master-one-core-cluster.yml
+  TwoNodeClusterProductPortfolioAssociation:
+    Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref TwoNodeClusterProduct
+  TwoNodeClusterProductLaunchRoleConstraint:
+    DependsOn: TwoNodeClusterProduct
+    Type: AWS::ServiceCatalog::LaunchRoleConstraint
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref TwoNodeClusterProduct
+      RoleArn: !GetAtt ClusterTemplateLaunchRole.Arn
+  
+  # One Master Two Nodes
+  OneMasterTwoNodeClusterProduct:
+    Type: "AWS::ServiceCatalog::CloudFormationProduct"
+    Properties:
+      Name: "one-node-cluster"
+      Description: "An emr-6.2.0 cluster with instance type m5xlarge and one master node"
+      Owner: "emr-studio-examples"
+      ProvisioningArtifactParameters:
+        - Description: "One Master Two-Node Cluster Template"
+          Name: "One Master Two-Node Template"
+          Info:
+            LoadTemplateFromURL: https://raw.githubusercontent.com/shigueojp/emr-studio-samples/main/cluster_templates/one-master-two-core-cluster.yml
+  OneMasterTwoNodeClusterProductPortfolioAssociation:
+    Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref OneMasterTwoNodeClusterProduct
+  OneMasterTwoNodeClusterProductLaunchRoleConstraint:
+    DependsOn: OneMasterTwoNodeClusterProduct
+    Type: AWS::ServiceCatalog::LaunchRoleConstraint
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref OneMasterTwoNodeClusterProduct
+      RoleArn: !GetAtt ClusterTemplateLaunchRole.Arn
 Outputs:
   WorkspaceSecurityGroup:
     Value: !Ref WorkspaceSecurityGroup
