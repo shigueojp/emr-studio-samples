@@ -30,7 +30,20 @@ Resources:
       - Name: Livy
       - Name: JupyterEnterpriseGateway
       - Name: Hive
-      EbsRootVolumeSize: '10'
+      BootstrapActions: [
+              {
+                  "Name": "Dummy bootstrap action",
+                  "ScriptBootstrapAction": {
+                      "Args": [
+                          "boto3",
+                          "s3fs",
+                          "jsonschema"
+                      ],
+                      "Path": "s3://awsvs-artifact-bucket-test/install_python_packages.sh"
+                  }
+              }
+          ]
+      EbsRootVolumeSize: '50'
       Name: !Ref ClusterName
       JobFlowRole: EMR_EC2_DefaultRole
       ServiceRole: EMR_DefaultRole
@@ -49,7 +62,6 @@ Resources:
           InstanceType: !Ref ClusterInstanceType
           Market: ON_DEMAND
           Name: Core
-
 Outputs:
   ClusterId:
     Value:
